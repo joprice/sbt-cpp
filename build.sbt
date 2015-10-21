@@ -4,19 +4,26 @@ name := "sbt-cpp"
 
 organization := "org.seacourt.build"
 
-version := "0.1.1"
+version := "0.1.2-SNAPSHOT"
 
 publishMavenStyle := false
 
 publishTo := Some(Resolver.file("file", new File("./releases")))
 
-libraryDependencies += "com.typesafe" % "config" % "1.0.1"
+libraryDependencies ++= Seq(
+  "com.typesafe" % "config" % "1.0.1",
+  "com.sleepycat" % "je" % "4.0.92",
+  "org.scalatest" %% "scalatest" % "1.9.1" % "test"
+)
 
-libraryDependencies += "com.sleepycat" % "je" % "4.0.92"
+scalacOptions ++= Seq("-deprecation")
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "1.9.1" % "test"
+ScriptedPlugin.scriptedSettings
 
-scalacOptions ++= Seq( "-deprecation" )
+scriptedLaunchOpts := scriptedLaunchOpts.value ++ Seq(
+  "-XX:MaxPermSize=256M", 
+  "-Dplugin.version=" + version.value
+)
 
-
+scriptedBufferLog := false
 

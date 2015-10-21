@@ -249,12 +249,9 @@ object NativeBuild extends AutoPlugin {
 
   val configKey = AttributeKey[BuildConfiguration]("configKey")
 
-  def setBuildConfigCommand = Command(nativeBuildConfigurationCommandName)(_ => buildOptsParser)
-  { (state, configName) =>
-
+  def setBuildConfigCommand = Command(nativeBuildConfigurationCommandName)(_ => buildOptsParser) { (state, configName) =>
     val configDict = configurations.map(x => (x.conf.name, x)).toMap
     val config = configDict(configName)
-
     val updatedAttributes = state.attributes.put(configKey, config)
 
     state.copy(attributes = updatedAttributes)
@@ -266,11 +263,13 @@ object NativeBuild extends AutoPlugin {
     state
   }
 
-  override lazy val projectSettings = Seq(
-    commands ++= BasicCommands.allBasicCommands ++ Seq(
-      setBuildConfigCommand,
-      Command.args("sh", "<args>")(shCommand)),
+  val nativeCommands = BasicCommands.allBasicCommands ++ Seq(
+    setBuildConfigCommand,
+    Command.args("sh", "<args>")(shCommand)
+  ) 
 
+  override lazy val projectSettings = Seq(
+    commands ++= nativeCommands,
     buildRootDirectory := file(conf.getString("build.rootdirectory")).getAbsoluteFile / name.value,
     nativeBuildConfiguration := {
       val beo = state.value.attributes.get(configKey)
@@ -293,19 +292,16 @@ object NativeBuild extends AutoPlugin {
 
       beo.get
     },
-
-    shellPrompt :=
-    { state =>
+    shellPrompt := { state =>
       val projectId = Project.extract(state).currentProject.id
       val config = state.attributes.get(configKey)
       
       "%s|%s:> ".format( config.map { _.conf.name }.getOrElse("No-config"), projectId)
-    } )
+    }
+  )
 
-  case class RichNativeProject(p: Project)
-  {
-    def nativeDependsOn(others: ProjectReference*): Project =
-    {
+  implicit class RichNativeProject(p: Project) {
+    def nativeDependsOn(others: ProjectReference*): Project = {
       others.foldLeft(p) {
         case (np, other) =>
           np.dependsOn(other).settings(
@@ -315,10 +311,8 @@ object NativeBuild extends AutoPlugin {
       }
     }
 
-    def nativeSystemDependsOn(others: ProjectReference*): Project =
-    {
-      others.foldLeft(p)
-      {
+    def nativeSystemDependsOn(others: ProjectReference*): Project = {
+      others.foldLeft(p) {
         case (np, other) =>
           np.dependsOn(other).settings(
             nativeSystemIncludeDirectories in Compile ++= (nativeExportedIncludeDirectories in other).value,
@@ -328,14 +322,10 @@ object NativeBuild extends AutoPlugin {
     }
   }
 
-  implicit def toRichNativeProject(p: Project) = new RichNativeProject(p)
-
   object NativeProject {
     // A selection of useful default settings from the standard sbt config
-    lazy val relevantSbtDefaultSettings = Seq[Sett](
-    
+    lazy val relevantSbtDefaultSettings = Seq(
       watchTransitiveSources := Defaults.watchTransitiveSourcesTask.value,
-      
       watch := Defaults.watchSetting.value
     )
 

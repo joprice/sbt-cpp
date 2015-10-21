@@ -1,3 +1,4 @@
+/*
 import sbt._
 import Keys._
 
@@ -168,4 +169,5 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
     .dependsOn( TestBuild.sharedLibrary1 )
 }
 
+*/
 
