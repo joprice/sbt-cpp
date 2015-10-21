@@ -34,6 +34,7 @@ object NativeDefaultBuild {
   //case object LinuxBeagleBone extends TargetPlatform
 }
 
+/*
 class NativeDefaultBuild(override val buildName: String) extends NativeBuild {
   import NativeDefaultBuild._
   import scala.collection.JavaConversions._
@@ -59,5 +60,4 @@ class NativeDefaultBuild(override val buildName: String) extends NativeBuild {
     makeConfig( new BuildType(VSCl, WindowsPC, Release), bt => new VSCompiler(conf, bt)),
     makeConfig( new BuildType(VSCl, WindowsPC, Debug), bt => new VSCompiler(conf, bt)))
 }
-
-
+*/

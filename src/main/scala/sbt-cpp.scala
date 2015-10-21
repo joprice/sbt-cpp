@@ -133,25 +133,25 @@ trait BuildTypeTrait {
 }
 
 /**
- * Keys for a native build that should be visible from all types of SBT
- * project (including Scala).
- */
-object NativeBuild
-{
-  val nativeExportedLibs = taskKey[Seq[File]]("All libraries exported by this project")
-  val nativeExportedLibDirectories = taskKey[Seq[File]]("All library directories exported by this project")
-  val nativeExportedIncludeDirectories = taskKey[Seq[File]]("All include directories exported by this project")
-}
-
-/**
  * The base mechanics, keys and build graph for a native build.
  * The possible build configurations remain abstract via BuildType and
  * the configurations Set. These need to be provided in a derived class.
  */
 
-abstract class NativeBuild extends Build
-{
-  import NativeBuild._
+object NativeBuild extends AutoPlugin {
+  /**
+   * Keys for a native build that should be visible from all types of SBT
+   * project (including Scala).
+   */
+
+  object autoImport {
+    val nativeExportedLibs = taskKey[Seq[File]]("All libraries exported by this project")
+    val nativeExportedLibDirectories = taskKey[Seq[File]]("All library directories exported by this project")
+    val nativeExportedIncludeDirectories = taskKey[Seq[File]]("All include directories exported by this project")
+  }
+
+  import autoImport._
+
 
   lazy val parseOptions = ConfigParseOptions.defaults().setAllowMissing(true)
   lazy val defaultConf = ConfigFactory.load(getClass.getClassLoader)
@@ -164,19 +164,41 @@ abstract class NativeBuild extends Build
   lazy val ccFilePattern = Seq("*.c")
   lazy val cxxFilePattern = Seq("*.cpp", "*.cxx")
 
-  lazy val buildRootDirectory =
-    file(conf.getString("build.rootdirectory")).getAbsoluteFile / buildName
+  lazy val buildRootDirectory = settingKey[File]("build root directory")
+  //  file(conf.getString("build.rootdirectory")).getAbsoluteFile / name.value 
+    //buildName
 
   private lazy val allProjectVals: Seq[Project] =
     ReflectUtilities.allVals[Project](this).values.toSeq
 
-  val buildName: String
+  //val buildName: String
+  //
+  import NativeDefaultBuild._
 
-  type BuildType <: BuildTypeTrait
+  //type BuildType <: BuildTypeTrait
+  case class BuildType(
+    compiler: NativeCompiler,
+    targetPlatform: TargetPlatform,
+    debugOptLevel: DebugOptLevel) extends BuildTypeTrait {
+    def pathDirs = Seq(compiler.toString, targetPlatform.toString, debugOptLevel.toString)
+    def name = pathDirs.mkString("_")
+  }
 
   case class BuildConfiguration(val conf: BuildType, val compiler: Compiler)
 
-  def configurations: Set[BuildConfiguration]
+  def makeConfig(buildType: BuildType, mc: BuildType => Compiler) = new BuildConfiguration(buildType, mc(buildType))
+
+  //def configurations: Set[BuildConfiguration]
+  lazy val configurations = Set[BuildConfiguration](
+    makeConfig( new BuildType(Gcc, LinuxPC, Release), bt => new GccLikeCompiler(conf, bt)),
+    makeConfig( new BuildType(Gcc, LinuxPC, Debug), bt => new GccLikeCompiler(conf, bt)),
+
+    makeConfig( new BuildType(Clang, LinuxPC, Release), bt => new GccLikeCompiler(conf, bt)),
+    makeConfig( new BuildType(Clang, LinuxPC, Debug), bt => new GccLikeCompiler(conf, bt)),
+
+    makeConfig( new BuildType(VSCl, WindowsPC, Release), bt => new VSCompiler(conf, bt)),
+    makeConfig( new BuildType(VSCl, WindowsPC, Debug), bt => new VSCompiler(conf, bt))
+  )
 
   /**
    * Override this in your project to do appropriate checks on the 
@@ -244,13 +266,13 @@ abstract class NativeBuild extends Build
     state
   }
 
-  override def settings = super.settings ++ Seq(
+  override lazy val projectSettings = Seq(
     commands ++= BasicCommands.allBasicCommands ++ Seq(
       setBuildConfigCommand,
       Command.args("sh", "<args>")(shCommand)),
 
-    nativeBuildConfiguration :=
-    {
+    buildRootDirectory := file(conf.getString("build.rootdirectory")).getAbsoluteFile / name.value,
+    nativeBuildConfiguration := {
       val beo = state.value.attributes.get(configKey)
 
       if (beo.isEmpty)
@@ -261,7 +283,7 @@ abstract class NativeBuild extends Build
       }
 
       val config = beo.get
-      val configCheckFile = config.conf.targetDirectory(buildRootDirectory) / "EnvHealthy.txt"
+      val configCheckFile = config.conf.targetDirectory(buildRootDirectory.value) / "EnvHealthy.txt"
 
       if (!configCheckFile.exists)
       {
@@ -318,7 +340,7 @@ abstract class NativeBuild extends Build
     )
 
     lazy val configSettings = Seq(
-      target := buildRootDirectory / name.value,
+      target := buildRootDirectory.value / name.value,
 
       historyPath :=
       {
@@ -646,20 +668,10 @@ abstract class NativeBuild extends Build
         if (res != 0) sys.error("Non-zero exit code: " + res.toString)
       } ))
 
-    def apply(
-      _name: String,
-      _projectDirectory: File,
-      _settings: => Seq[Def.Setting[_]]): Project =
-    {
-      Project(
-        id = _name,
-        base = _projectDirectory,
-        settings = Seq(
-          name := _name,
-          //baseDirectory := _projectDirectory,
-          nativeProjectDirectory in Compile := baseDirectory.value / _projectDirectory.toString )
-          ++ _settings )
-    }
+    //baseDirectory := _projectDirectory,
+    //nativeProjectDirectory in Compile := baseDirectory.value / _projectDirectory.toString )
+    //
+  //  override lazy val projectSettings = settings
   }
 }
 
