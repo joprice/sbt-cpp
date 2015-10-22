@@ -7,4 +7,4 @@ object TestBuild extends NativeDefaultBuild( "Utility" )
     lazy val check = NativeProject( "check", file("."), NativeProject.staticLibrarySettings )
 }
 
-*
+*/

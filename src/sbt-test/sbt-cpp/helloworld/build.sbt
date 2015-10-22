@@ -3,3 +3,4 @@ import sbt._
 
 enablePlugins(NativeBuild)
 
+nativeExeSettings
