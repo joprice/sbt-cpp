@@ -9,6 +9,129 @@ import scala.collection.{ mutable, immutable }
 
 import ProcessHelper.{runProcess}
 
+//TODO: use JavaConverters instead
+import scala.collection.JavaConversions._
+
+/**
+ * Build configurations for a particular project must inherit from this trait.
+ * See the default in NativeDefaultBuild for more details
+ */
+trait BuildTypeTrait {
+  def pathDirs: Seq[String]
+
+  def targetDirectory(rootDirectory: File) = pathDirs.foldLeft(rootDirectory)(_ / _)
+}
+
+/**
+ * The base trait from which all native compilers must be inherited in order
+ */
+trait Compiler {
+  /**
+   * TODO COMMENT: What are "tools"?
+   */
+  def toolPaths: Seq[File]
+  def defaultLibraryPaths: Seq[File]
+  def defaultIncludePaths: Seq[File]
+  def ccExe: File
+  def cxxExe: File
+  def archiverExe: File
+  def linkerExe: File
+  def ccDefaultFlags: Seq[String]
+  def cxxDefaultFlags: Seq[String]
+  def archiveDefaultFlags: Seq[String]
+  def dynamicLibraryLinkDefaultFlags: Seq[String]
+  def executableLinkDefaultFlags: Seq[String]
+
+  def findHeaderDependencies(
+    log: Logger,
+    buildDirectory: File,
+    includePaths: Seq[File],
+    systemIncludePaths: Seq[File],
+    sourceFile: File,
+    compilerFlags: Seq[String],
+    quiet: Boolean = false): FunctionWithResultPath
+
+  def ccCompileToObj(
+    log: Logger,
+    buildDirectory: File,
+    includePaths: Seq[File],
+    systemIncludePaths: Seq[File],
+    sourceFile: File,
+    compilerFlags: Seq[String],
+    quiet: Boolean = false
+  ): FunctionWithResultPath
+
+  def cxxCompileToObj(
+    log: Logger,
+    buildDirectory: File,
+    includePaths: Seq[File],
+    systemIncludePaths: Seq[File],
+    sourceFile: File,
+    compilerFlags: Seq[String],
+    quiet: Boolean = false
+  ): FunctionWithResultPath
+    
+  def buildStaticLibrary(
+    log: Logger,
+    buildDirectory: File,
+    libName: String,
+    objectFiles: Seq[File],
+    archiveFlags: Seq[String],
+    quiet: Boolean = false
+  ): FunctionWithResultPath
+
+  def buildSharedLibrary(
+    log: Logger,
+    buildDirectory: File,
+    libName: String,
+    objectFiles: Seq[File],
+    linkPaths: Seq[File],
+    linkLibraries: Seq[String],
+    dynamicLibraryLinkFlags: Seq[String],
+    quiet: Boolean = false
+  ): FunctionWithResultPath
+
+  def buildExecutable(
+    log: Logger,
+    buildDirectory: File,
+    exeName: String,
+    executableLinkFlags: Seq[String],
+    linkPaths: Seq[File],
+    linkLibraries: Seq[String],
+    inputFiles: Seq[File],
+    quiet: Boolean = false): FunctionWithResultPath
+}
+
+
+trait CompilationProcess {
+  protected def reportFileGenerated(
+    log: Logger,
+    genFile: File,
+    quiet: Boolean) = if (!quiet) log.info(genFile.toString)
+}
+
+trait CompilerWithConfig extends Compiler {
+  def buildTypeTrait: BuildTypeTrait
+  def config: Config
+
+  private val configPrefix = buildTypeTrait.pathDirs
+  private def ton(d: Seq[String]) = d.mkString(".")
+
+  override def toolPaths = config.getStringList(ton(configPrefix :+ "toolPaths")).map(file)
+  override def defaultIncludePaths = config.getStringList(ton(configPrefix :+ "includePaths")).map(file)
+  override def defaultLibraryPaths = config.getStringList(ton(configPrefix :+ "libraryPaths")).map(file)
+  override def ccExe = file(config.getString(ton(configPrefix :+ "ccExe")))
+  override def cxxExe = file(config.getString(ton(configPrefix :+ "cxxExe")))
+  override def archiverExe = file(config.getString(ton(configPrefix :+ "archiver")))
+  override def linkerExe = file(config.getString(ton(configPrefix :+ "linker")))
+  override def ccDefaultFlags = config.getStringList(ton(configPrefix :+ "ccFlags"))
+  override def cxxDefaultFlags = config.getStringList(ton(configPrefix :+ "cxxFlags"))
+  override def archiveDefaultFlags = config.getStringList(ton(configPrefix :+ "archiveFlags"))
+  override def dynamicLibraryLinkDefaultFlags = config.getStringList(ton(configPrefix :+ "dynamicLibraryLinkFlags"))
+  override def executableLinkDefaultFlags = config.getStringList(ton(configPrefix :+ "executableLinkFlags"))
+  
+  def getCwd = (new java.io.File(".")).getCanonicalFile
+}
 
 /**
  * Gcc and compatible (e.g. Clang) compilers
@@ -23,7 +146,8 @@ case class GccLikeCompiler(
     systemIncludePaths: Seq[File],
     sourceFile: File,
     compilerFlags: Seq[String],
-    quiet: Boolean) = FunctionWithResultPath(
+    quiet: Boolean
+  ) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".d")) { depFile =>
       val tmpDepFile = buildDirectory / (sourceFile.base + ".dt")
       val depArgs: Seq[String] = Seq(
@@ -62,7 +186,8 @@ case class GccLikeCompiler(
     systemIncludePaths: Seq[File],
     sourceFile: File,
     compilerFlags: Seq[String],
-    quiet: Boolean) = FunctionWithResultPath(
+    quiet: Boolean
+  ) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".o")) { outputFile =>
       val buildArgs: Seq[String] = Seq(
         "-fPIC",
@@ -91,7 +216,8 @@ case class GccLikeCompiler(
     systemIncludePaths: Seq[File],
     sourceFile: File,
     compilerFlags: Seq[String],
-    quiet: Boolean) = FunctionWithResultPath(
+    quiet: Boolean
+  ) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".o")) { outputFile =>
       val buildArgs: Seq[String] = Seq(
         "-fPIC",
@@ -119,7 +245,8 @@ case class GccLikeCompiler(
     libName: String,
     objectFiles: Seq[File],
     linkFlags: Seq[String],
-    quiet: Boolean) =
+    quiet: Boolean
+  ) =
     FunctionWithResultPath(buildDirectory / (libName + ".a")) { outputFile =>
       val arArgs: Seq[String] = Seq(
         "-c",
@@ -144,7 +271,8 @@ case class GccLikeCompiler(
     linkPaths: Seq[File],
     linkLibraries: Seq[String],
     linkFlags: Seq[String],
-    quiet: Boolean) =
+    quiet: Boolean
+  ) =
     FunctionWithResultPath(buildDirectory / (libName + ".so")) { outputFile =>
       val args: Seq[String] = Seq(
         "-shared",
@@ -173,7 +301,8 @@ case class GccLikeCompiler(
     linkPaths: Seq[File],
     linkLibraries: Seq[String],
     inputFiles: Seq[File],
-    quiet: Boolean) =
+    quiet: Boolean
+  ) =
     FunctionWithResultPath(buildDirectory / exeName) { outputFile =>
       val linkArgs: Seq[String] = Seq(
         "-o" + outputFile.toString) ++
@@ -206,7 +335,8 @@ case class VSCompiler(
     systemIncludePaths: Seq[File],
     sourceFile: File,
     compilerFlags: Seq[String],
-    quiet: Boolean) = FunctionWithResultPath(
+    quiet: Boolean
+  ) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".d")) { depFile =>
       val depArgs: Seq[String] = Seq(
         "/nologo",
@@ -245,7 +375,8 @@ case class VSCompiler(
     systemIncludePaths: Seq[File],
     sourceFile: File,
     compilerFlags: Seq[String],
-    quiet: Boolean) = FunctionWithResultPath(
+    quiet: Boolean
+  ) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".obj")) { outputFile =>
       val buildArgs: Seq[String] = Seq(
         "/nologo",
@@ -328,7 +459,8 @@ case class VSCompiler(
     linkPaths: Seq[File],
     linkLibraries: Seq[String],
     linkFlags: Seq[String],
-    quiet: Boolean) = FunctionWithResultPath(
+    quiet: Boolean
+  ) = FunctionWithResultPath(
     buildDirectory / ("lib" + libName + ".so")) { outputFile =>
       val args: Seq[String] = Seq(
         "/nologo",
@@ -355,7 +487,8 @@ case class VSCompiler(
     linkPaths: Seq[File],
     linkLibraries: Seq[String],
     inputFiles: Seq[File],
-    quiet: Boolean) =
+    quiet: Boolean
+  ) =
     FunctionWithResultPath(buildDirectory / exeName) { outputFile =>
       val linkArgs: Seq[String] = Seq(
         "/nologo",

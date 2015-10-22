@@ -1,1 +1,22 @@
+# Gcc-LinuxPC-Debug
+> set compilerType := Gcc
+> set targetPlatform := LinuxPC
+> set debugOptLevel := Debug
 > compile
+> test
+
+# Gcc-LinuxPC-Release
+> set debugOptLevel := Release
+> compile
+> test
+
+# Clang-LinuxPC-Release
+> set compilerType := Clang
+> compile
+> test
+
+# Clang-LinuxPC-Debug
+> set debugOptLevel := Debug
+> compile
+> test
+

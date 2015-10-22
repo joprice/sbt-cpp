@@ -10,15 +10,16 @@ import scala.collection.{ mutable, immutable }
  * than the file it will create
  */
 
-class FunctionWithResultPath(val resultPath: File, val fn: () => Unit)
-{
+class FunctionWithResultPath(val resultPath: File, val fn: () => Unit) {
   import java.security.MessageDigest
 
   private def md5(s: String) = MessageDigest.getInstance("MD5").digest(s.getBytes).map("%02X" format _).mkString
 
-  def apply() = { fn(); resultPath }
-  def runIfNotCached(stateCacheDir: File, inputDeps: Seq[File]) =
-  {
+  def apply() = { 
+    fn(); resultPath 
+  }
+
+  def runIfNotCached(stateCacheDir: File, inputDeps: Seq[File]) = {
     val resultPathHash = md5(resultPath.toString)
     val lazyBuild = FileFunction.cached( stateCacheDir / resultPathHash, FilesInfo.lastModified, FilesInfo.exists)
     { _ =>
@@ -34,10 +35,8 @@ class FunctionWithResultPath(val resultPath: File, val fn: () => Unit)
   }
 }
 
-object FunctionWithResultPath
-{
-  def apply(resultPath: File)(fn: File => Unit): FunctionWithResultPath =
-  {
+object FunctionWithResultPath {
+  def apply(resultPath: File)(fn: File => Unit): FunctionWithResultPath = {
     new FunctionWithResultPath( resultPath, () => { fn(resultPath) })
   }
 }
@@ -47,6 +46,7 @@ class HeaderConfigFile(private val fileName: File) {
   private val defs = mutable.ArrayBuffer[(String, String)]()
 
   def addDefinition(name: String) = defs.append((name, ""))
+
   def addDefinition(name: String, value: String) = defs.append((name, value))
 
   def write() = {
@@ -57,14 +57,10 @@ class HeaderConfigFile(private val fileName: File) {
 }
 
 object HeaderConfigFile {
-  def apply(log: Logger, compiler: Compiler, fileName: File)( fn: HeaderConfigFile => Unit): File =
-  {
-      FunctionWithResultPath(fileName)
-      { _ =>
+  def apply(log: Logger, compiler: Compiler, fileName: File)( fn: HeaderConfigFile => Unit): File = {
+      FunctionWithResultPath(fileName) { _ =>
         val hcf = new HeaderConfigFile(fileName)
-
         fn(hcf)
-
         hcf.write()
       }()
     }

@@ -3,9 +3,8 @@ package org.seacourt.build
 import sbt._
 import Keys._
 
-import scala.collection.{ mutable, immutable }
-
 object PlatformChecks {
+
   sealed trait CompileType
   object CCTest extends CompileType
   object CXXTest extends CompileType
@@ -16,7 +15,8 @@ object PlatformChecks {
     compileType: CompileType,
     minimalProgram: String,
     expectHeaders: Set[String],
-    includePaths: Seq[File] = Seq()): Boolean =
+    includePaths: Seq[File] = Seq()
+  ): Boolean =
     IO.withTemporaryDirectory { td =>
       IO.createDirectory(td)
 
